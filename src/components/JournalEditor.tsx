@@ -14,6 +14,8 @@ import {
   Mic,
   Brain,
   CheckCircle2,
+  HelpCircle,
+  Info,
 } from 'lucide-react';
 import { ThoughtStream } from './ThoughtStream';
 import { PerspectiveFlipModal } from './PerspectiveFlipModal';
@@ -27,40 +29,45 @@ interface JournalEditorProps {
 const MODES: Array<{
   id: ReflectionMode;
   label: string;
-  description: string;
+  shortDesc: string;
+  detail: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   {
     id: 'reflection',
     label: 'Mindful Reflection',
-    description: 'Empathetic feedback, emotional perspective & guiding questions',
+    shortDesc: 'Deep empathy & open inquiry',
+    detail: 'Validates emotions, highlights patterns, and asks 1-2 thoughtful guiding questions.',
     icon: Compass,
   },
   {
     id: 'summary',
     label: 'Executive Summary',
-    description: 'Structured breakdown of key themes, sentiments & action items',
+    shortDesc: 'Structured takeaway points',
+    detail: 'Organizes your thoughts into core themes, key observations, and action items.',
     icon: ListChecks,
   },
   {
     id: 'brainstorm',
     label: 'Brainstorm Ideas',
-    description: 'Fresh perspectives, creative pathways & actionable solutions',
+    shortDesc: 'Fresh angles & pathways',
+    detail: 'Generates creative alternatives, micro-experiments, and constructive solutions.',
     icon: Lightbulb,
   },
   {
     id: 'converse',
-    label: 'Open Dialogue',
-    description: 'Conversational back-and-forth exploration of thoughts',
+    label: 'Open Dialogue (Chat)',
+    shortDesc: 'Back-and-forth conversational partner',
+    detail: 'Chat with Gemini as an empathetic sounding board, continuing across multiple turns.',
     icon: MessageSquare,
   },
 ];
 
 const SUGGESTED_PROMPTS = [
-  "Today I navigated a difficult transition and felt overwhelmed by...",
-  "Reflecting on a recent milestone I reached: what went well and what I learned...",
-  "I'm feeling stuck between two paths and want to explore my true motivations...",
-  "An unexpected moment of gratitude today that made me pause and realize...",
+  "Today I faced a difficult decision and felt unsure because...",
+  "Reflecting on a recent milestone: what went well and what I learned...",
+  "I noticed myself feeling drained by a recurring situation with...",
+  "An unexpected moment of calm today that made me realize...",
 ];
 
 export const JournalEditor: React.FC<JournalEditorProps> = ({
@@ -107,20 +114,21 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server responded with status ${response.status}`);
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Server failed to generate reflection response.');
       }
 
-      const data = await response.json();
-      const generatedResponse: string = data.response;
+      const resData = await response.json();
+      const generatedResponse: string = resData.response || '';
 
-      const newId = `interaction_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      // 2. Prepare isolated user interaction document
+      const newId = `entry_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const nowIso = new Date().toISOString();
 
       const newEntry: UserInteraction = {
         id: newId,
         userId,
-        title: title.trim() || `${mode.charAt(0).toUpperCase() + mode.slice(1)} (${new Date().toLocaleDateString()})`,
+        title: title.trim() || `Reflection: ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
         prompt: cleanPrompt,
         response: generatedResponse,
         mode,
@@ -142,7 +150,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         updatedAt: nowIso,
       };
 
-      // 2. Strict undefined-stripping before Firestore mutation
+      // 3. Strict undefined-stripping & save to Firestore
       const sanitized = sanitizePayload(newEntry);
       const docPath = `users/${userId}/interactions/${newId}`;
 
@@ -193,38 +201,44 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
   };
 
   return (
-    <div className="bg-stone-50 border border-stone-200/90 rounded-2xl p-4 sm:p-6 lg:p-7 shadow-xs relative">
+    <div className="bg-stone-900/90 border border-stone-800/80 rounded-3xl p-5 sm:p-7 lg:p-8 shadow-2xl backdrop-blur-xl relative">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="mb-4 p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 text-emerald-200 text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* Header with Feature Explanation */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-stone-800/80">
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-stone-900 tracking-tight">
-            Compose Reflection or Journal
-          </h2>
-          <p className="text-xs sm:text-sm text-stone-600 mt-1">
-            Express your thoughts freely. Gemini 3.6 Flash will read and provide mindful guidance, structured summaries, or creative brainstorming.
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-stone-100 tracking-tight">
+              Compose Your Reflection
+            </h2>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/25 font-semibold">
+              Gemini 3.6 Flash
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-stone-300 mt-1 max-w-2xl leading-relaxed">
+            Write down your thoughts, dilemma, or feelings. Gemini analyzes your entry according to your chosen reflection style and saves it privately to Firestore.
           </p>
         </div>
 
-        {/* ThoughtStream Toggle Button */}
+        {/* ThoughtStream Toggle Button (Easier to distinguish) */}
         <button
           type="button"
           id="thoughtstream-toggle-btn"
           onClick={() => setShowThoughtStream((prev) => !prev)}
-          className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer self-start sm:self-auto ${
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold border transition shadow-sm cursor-pointer self-start sm:self-auto shrink-0 ${
             showThoughtStream
-              ? 'bg-amber-900 text-stone-50 border-amber-950 shadow-xs'
-              : 'bg-white text-stone-800 border-stone-300 hover:bg-stone-100'
+              ? 'bg-amber-500 text-stone-950 border-amber-400 shadow-amber-950/50'
+              : 'bg-stone-800/90 text-amber-300 border-amber-500/30 hover:bg-stone-800 hover:border-amber-500/60'
           }`}
         >
-          <Mic className={`w-3.5 h-3.5 ${showThoughtStream ? 'text-amber-300' : 'text-amber-800'}`} />
-          <span>ThoughtStream</span>
+          <Mic className={`w-4 h-4 ${showThoughtStream ? 'text-stone-950' : 'text-amber-400'}`} />
+          <span>{showThoughtStream ? 'Close ThoughtStream' : 'Speak: ThoughtStream'}</span>
         </button>
       </div>
 
@@ -235,7 +249,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
             userId={userId}
             onCommitSuccess={() => {
               setShowThoughtStream(false);
-              showToast('ThoughtStream committed to journal silently!');
+              showToast('ThoughtStream audio transcribed & committed to journal silently!');
               if (onThoughtStreamCommitted) onThoughtStreamCommitted();
             }}
             onClose={() => setShowThoughtStream(false)}
@@ -244,12 +258,12 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       )}
 
       {errorMessage && (
-        <div className="mb-5 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="mb-5 p-4 rounded-2xl bg-rose-950/50 border border-rose-800/60 text-rose-300 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Operation Notice</p>
-              <p className="text-xs text-rose-700 mt-0.5">{errorMessage}</p>
+              <p className="font-semibold text-rose-200">Operation Notice</p>
+              <p className="text-xs text-rose-300 mt-0.5">{errorMessage}</p>
             </div>
           </div>
           {pendingSaveData && (
@@ -257,7 +271,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
               id="retry-save-btn"
               onClick={handleRetrySave}
               disabled={loading}
-              className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-medium hover:bg-rose-700 transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+              className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-500 transition flex items-center gap-1.5 shrink-0 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Retry Save to Firestore
@@ -266,13 +280,22 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Reflection Mode Selectors */}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Function Layout 1: Reflection Mode Selectors with Clear Explanations */}
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-            Select Reflection Style
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400">
+              1. Choose Reflection Mode
+            </label>
+            <span className="text-[11px] text-stone-400">
+              How Gemini will respond to your words
+            </span>
+          </div>
+          <p className="text-xs text-stone-400 mb-3">
+            Select how you would like Gemini to frame its response:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {MODES.map((m) => {
               const Icon = m.icon;
               const isSelected = mode === m.id;
@@ -282,20 +305,27 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   key={m.id}
                   id={`mode-btn-${m.id}`}
                   onClick={() => setMode(m.id)}
-                  className={`text-left p-3 rounded-xl border transition cursor-pointer ${
+                  className={`text-left p-3.5 rounded-2xl border transition cursor-pointer flex flex-col justify-between ${
                     isSelected
-                      ? 'border-amber-700 bg-amber-50/60 ring-1 ring-amber-700/20'
-                      : 'border-stone-200 bg-stone-100/40 hover:bg-stone-100 hover:border-stone-300'
+                      ? 'border-amber-500/90 bg-amber-500/15 ring-1 ring-amber-500/40 text-stone-100 shadow-md shadow-amber-950/30'
+                      : 'border-stone-800/90 bg-stone-950/60 text-stone-300 hover:bg-stone-800/60 hover:border-stone-700'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className={`w-4 h-4 ${isSelected ? 'text-amber-800' : 'text-stone-500'}`} />
-                    <span className={`text-xs font-semibold ${isSelected ? 'text-amber-900' : 'text-stone-800'}`}>
-                      {m.label}
-                    </span>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-amber-500/20 text-amber-300' : 'bg-stone-800 text-stone-400'}`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <span className={`text-xs font-bold ${isSelected ? 'text-amber-300' : 'text-stone-200'}`}>
+                        {m.label}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] font-medium leading-snug ${isSelected ? 'text-stone-200' : 'text-stone-400'}`}>
+                      {m.shortDesc}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-stone-500 mt-1 leading-snug">
-                    {m.description}
+                  <p className="text-[10px] text-stone-500 mt-2 pt-2 border-t border-stone-800/80 leading-relaxed">
+                    {m.detail}
                   </p>
                 </button>
               );
@@ -303,68 +333,74 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
         </div>
 
-        {/* Optional Title */}
+        {/* Function Layout 2: Title Field */}
         <div>
-          <label htmlFor="journal-title" className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
-            Title (Optional)
+          <label htmlFor="journal-title" className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">
+            2. Title (Optional)
           </label>
+          <p className="text-xs text-stone-400 mb-2">
+            Give this reflection a label or leave empty for an automatic timestamp.
+          </p>
           <input
             id="journal-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., Reflections on Leadership & Patience"
+            placeholder="e.g., Clarity on Career Transition & Staying Grounded"
             maxLength={120}
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 transition"
+            className="w-full px-4 py-3 rounded-2xl border border-stone-800 bg-stone-950/70 text-stone-100 text-sm placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/80 transition"
           />
         </div>
 
-        {/* Journal Content Textarea */}
+        {/* Function Layout 3: Journal Content Textarea */}
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2">
-              <label htmlFor="journal-content" className="block text-xs font-semibold uppercase tracking-wider text-stone-500">
-                Journal Entry / Reflection
-              </label>
-            </div>
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="journal-content" className="block text-xs font-bold uppercase tracking-wider text-amber-400">
+              3. Journal Entry / Reflection Text
+            </label>
             <span className="text-[11px] text-stone-400">
               {prompt.length} / 10,000 characters
             </span>
           </div>
+          <p className="text-xs text-stone-400 mb-2">
+            Pour your uncensored thoughts here. You can also click any inspiration prompt below.
+          </p>
+
           <textarea
             id="journal-content"
-            rows={6}
+            rows={7}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Write freely about your day, a dilemma, a realization, or an emotional hurdle..."
+            placeholder="Write freely about what happened, what you are feeling, what feels difficult, or what you hope to achieve..."
             maxLength={10000}
-            className="w-full px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-stone-900 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 transition resize-y"
+            className="w-full px-4 py-3.5 rounded-2xl border border-stone-800 bg-stone-950/70 text-stone-100 text-sm leading-relaxed placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/80 transition resize-y font-normal"
           />
         </div>
 
-        {/* Action Buttons below textarea */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* Challenge My Assumptions Button */}
+        {/* Function Layout 4: Action Tools & Inspiration Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-stone-950/60 border border-stone-800/80">
+          {/* Cognitive Bias Challenger */}
           <button
             type="button"
             id="challenge-assumptions-editor-btn"
             onClick={() => setShowPerspectiveFlip(true)}
             disabled={!prompt.trim() || loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100 text-xs font-semibold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Analyze cognitive blind spots in your text"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-950/60 text-purple-300 border border-purple-800/60 hover:bg-purple-900/60 text-xs font-semibold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Brain className="w-3.5 h-3.5 text-purple-700" />
-            <span>Challenge My Assumptions</span>
+            <Brain className="w-3.5 h-3.5 text-purple-400" />
+            <span>Perspective Flip: Challenge Assumptions</span>
           </button>
 
-          {/* Inspiration Prompts Accordion */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
-            <span className="text-[11px] text-stone-400 font-medium shrink-0">Prompts:</span>
+          {/* Inspiration Prompts Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full">
+            <span className="text-[11px] text-stone-400 font-semibold shrink-0">Starters:</span>
             {SUGGESTED_PROMPTS.slice(0, 2).map((sample, idx) => (
               <button
                 type="button"
                 key={idx}
                 onClick={() => setPrompt(sample)}
-                className="text-left text-[11px] px-2 py-0.5 rounded-lg bg-stone-100 text-stone-600 hover:bg-stone-200 border border-stone-200 transition cursor-pointer truncate max-w-[220px]"
+                className="text-left text-[11px] px-2.5 py-1 rounded-lg bg-stone-800/80 text-stone-300 hover:bg-stone-800 hover:text-amber-200 border border-stone-700/60 transition cursor-pointer truncate max-w-[200px] sm:max-w-[260px]"
               >
                 "{sample}"
               </button>
@@ -372,28 +408,28 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
           </div>
         </div>
 
-        {/* Submit Action */}
-        <div className="flex items-center justify-between pt-2 border-t border-stone-200">
-          <p className="text-[11px] text-stone-500 hidden sm:block">
-            Auto-saved to your private Firestore database upon completion.
+        {/* Function Layout 5: Distinct Primary Submit Action */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-stone-800/80">
+          <p className="text-[11px] text-stone-400">
+            🔒 Strictly isolated in your Cloud Firestore database.
           </p>
 
           <button
             type="submit"
             id="submit-reflection-btn"
             disabled={loading || !prompt.trim()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 text-stone-50 font-medium text-sm hover:bg-stone-800 active:scale-[0.98] transition shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ml-auto"
+            className="inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm active:scale-[0.98] transition shadow-lg shadow-amber-950/50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer w-full sm:w-auto"
           >
             {loading ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-                <span>Generating Reflection...</span>
+                <RefreshCw className="w-4 h-4 animate-spin text-stone-950" />
+                <span>Reflecting with Gemini...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-4 h-4 text-amber-400" />
+                <Sparkles className="w-4 h-4 text-stone-950" />
                 <span>Reflect with Gemini</span>
-                <Send className="w-3.5 h-3.5 text-stone-400 ml-1" />
+                <Send className="w-3.5 h-3.5 text-stone-950 ml-1" />
               </>
             )}
           </button>

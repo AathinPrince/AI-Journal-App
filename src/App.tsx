@@ -14,10 +14,12 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
-  AlertTriangle,
-  Info,
   ChevronDown,
   ChevronUp,
+  Compass,
+  Mic,
+  MessageSquare,
+  BookOpen,
 } from 'lucide-react';
 
 export default function App() {
@@ -73,7 +75,7 @@ export default function App() {
           });
         });
 
-        // Client-side sort by updatedAt descending for reliability without compound index dependencies
+        // Client-side sort by updatedAt descending
         items.sort(
           (a, b) =>
             new Date(b.updatedAt || b.createdAt).getTime() -
@@ -117,15 +119,27 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center p-4">
-        <div className="w-10 h-10 border-3 border-stone-300 border-t-amber-800 rounded-full animate-spin mb-4" />
-        <p className="text-sm font-medium text-stone-600">Verifying authentication...</p>
+      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4 text-stone-100">
+        <div className="w-12 h-12 border-3 border-stone-800 border-t-amber-400 rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold text-stone-300">Entering your journal sanctuary...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-stone-100 text-stone-900 flex flex-col">
+    <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col relative selection:bg-amber-500/30 selection:text-amber-200 font-sans">
+      {/* Warm Golden Fields Background */}
+      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+        <img
+          src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=2000&auto=format&fit=crop"
+          alt="Warm golden field at sunset"
+          referrerPolicy="no-referrer"
+          className="w-full h-full object-cover object-center scale-105 filter brightness-[0.38] saturate-[1.25]"
+        />
+        {/* Warm Amber-Dark Vignette Overlay for perfect readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-stone-950/85 via-stone-950/80 to-stone-950/95 backdrop-blur-[2px]" />
+      </div>
+
       <Navbar
         user={currentUser}
         onNewEntry={() => {
@@ -134,34 +148,93 @@ export default function App() {
         }}
       />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {!currentUser ? (
           <AuthCard />
         ) : (
           <div className="space-y-6">
             {/* Global Error Banner */}
             {globalError && (
-              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+              <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center justify-between">
                 <span>{globalError}</span>
                 <button
                   onClick={() => setGlobalError(null)}
-                  className="font-semibold text-rose-900 underline ml-2 cursor-pointer"
+                  className="font-bold text-rose-200 underline ml-2 cursor-pointer"
                 >
                   Dismiss
                 </button>
               </div>
             )}
 
-            {/* Dashboard Tabs & Metrics Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-50 border border-stone-200/90 rounded-2xl p-2.5 sm:p-3 shadow-xs">
-              <div className="flex items-center gap-1.5">
+            {/* Feature Overview Strip: visible guidance explaining chat, speech, & modes */}
+            <div className="p-4 rounded-3xl bg-stone-900/90 border border-stone-800/80 shadow-lg backdrop-blur-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-stone-800/80">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-stone-100 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-amber-400" />
+                    <span>Journal Workspace & Capabilities</span>
+                  </h2>
+                  <p className="text-xs text-stone-300 mt-0.5">
+                    Visibly understand how each feature works below to reflect, speak, or chat effortlessly:
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs text-stone-400">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-950 border border-stone-800 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    Gemini 3.6 Flash
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Firestore Sync
+                  </span>
+                </div>
+              </div>
+
+              {/* 3 Clear Feature Explainers */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+                <div className="p-3 rounded-2xl bg-stone-950/60 border border-stone-800/80">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 mb-1">
+                    <Compass className="w-3.5 h-3.5 text-amber-400" />
+                    <span>How to Reflect: 4 Modes</span>
+                  </div>
+                  <p className="text-[11px] text-stone-400 leading-relaxed">
+                    Choose from <strong>Mindful</strong> (empathy & inquiry), <strong>Summary</strong> (bullet points), <strong>Brainstorm</strong> (creative solutions), or <strong>Dialogue</strong> (sounding board).
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-stone-950/60 border border-stone-800/80">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 mb-1">
+                    <Mic className="w-3.5 h-3.5 text-amber-400" />
+                    <span>How to Speak: ThoughtStream</span>
+                  </div>
+                  <p className="text-[11px] text-stone-400 leading-relaxed">
+                    Click <strong>Speak: ThoughtStream</strong>. Speak freely with continuous recording that never cuts out on pauses. Automatically summarized when paused.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-stone-950/60 border border-stone-800/80">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 mb-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                    <span>How to Chat: Multi-Turn</span>
+                  </div>
+                  <p className="text-[11px] text-stone-400 leading-relaxed">
+                    After any entry is created, type in the bottom reply box to continue talking with Gemini while maintaining your full reflection context.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Dashboard Navigation Tabs: Easy to distinguish buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-900/90 border border-stone-800/80 rounded-2xl p-2 sm:p-2.5 shadow-md backdrop-blur-xl">
+              <div className="flex items-center gap-2">
                 <button
                   id="tab-editor-btn"
                   onClick={() => setActiveTab('editor')}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                     activeTab === 'editor'
-                      ? 'bg-stone-900 text-stone-50 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                      ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/40'
+                      : 'bg-stone-950/60 text-stone-300 hover:text-stone-100 hover:bg-stone-800 border border-stone-800'
                   }`}
                 >
                   <PenLine className="w-4 h-4" />
@@ -171,33 +244,31 @@ export default function App() {
                 <button
                   id="tab-history-btn"
                   onClick={() => setActiveTab('history')}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer ${
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
                     activeTab === 'history'
-                      ? 'bg-stone-900 text-stone-50 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                      ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-950/40'
+                      : 'bg-stone-950/60 text-stone-300 hover:text-stone-100 hover:bg-stone-800 border border-stone-800'
                   }`}
                 >
                   <History className="w-4 h-4" />
-                  <span>Past Entries ({interactions.length})</span>
+                  <span>Past Journals ({interactions.length})</span>
                 </button>
 
                 {selectedEntry && activeTab === 'conversation' && (
-                  <span className="text-xs font-semibold text-amber-900 bg-amber-100/70 border border-amber-200 px-3 py-1 rounded-xl truncate max-w-[160px] sm:max-w-[240px]">
+                  <span className="text-xs font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-3 py-1.5 rounded-xl truncate max-w-[180px] sm:max-w-[280px]">
                     Active: {selectedEntry.title}
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-3 text-xs text-stone-500 pl-2">
-                <span className="hidden sm:inline-flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  Gemini 3.6 Flash
-                </span>
-                <span className="inline-flex items-center gap-1 text-emerald-700">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Firestore Live
-                </span>
-              </div>
+              {selectedEntry && activeTab !== 'conversation' && (
+                <button
+                  onClick={() => setActiveTab('conversation')}
+                  className="text-xs font-semibold text-amber-400 hover:text-amber-300 underline cursor-pointer px-2"
+                >
+                  Resume Active Conversation →
+                </button>
+              )}
             </div>
 
             {/* Main Content Area */}
@@ -220,50 +291,31 @@ export default function App() {
             )}
 
             {activeTab === 'history' && (
-              <div className="bg-stone-50 border border-stone-200/90 rounded-2xl p-4 sm:p-6 lg:p-7 shadow-xs">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-semibold text-stone-900 tracking-tight">
-                      Reflection & Journal History
-                    </h2>
-                    <p className="text-xs sm:text-sm text-stone-600 mt-0.5">
-                      All your multi-turn entries, safely preserved and isolated in Cloud Firestore.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('editor')}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-lg transition cursor-pointer"
-                  >
-                    + Write New
-                  </button>
-                </div>
-
-                <EntryHistory
-                  entries={interactions}
-                  userId={currentUser.uid}
-                  onSelectEntry={handleSelectEntry}
-                  onNewEntry={() => setActiveTab('editor')}
-                  onEntryDeleted={handleEntryDeleted}
-                />
-              </div>
+              <EntryHistory
+                entries={interactions}
+                userId={currentUser.uid}
+                onSelectEntry={handleSelectEntry}
+                onNewEntry={() => setActiveTab('editor')}
+                onEntryDeleted={handleEntryDeleted}
+              />
             )}
           </div>
         )}
       </main>
 
       {/* Verification & Architecture Footer */}
-      <footer className="mt-auto border-t border-stone-200 bg-stone-50/80 py-4 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500">
+      <footer className="mt-auto border-t border-stone-800/80 bg-stone-950/90 py-4 px-4 sm:px-6 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-400">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>
-              Isolated paths: <code className="bg-stone-200/70 px-1 py-0.5 rounded text-[11px]">/users/{currentUser ? currentUser.uid.slice(0, 8) + '...' : '{uid}'}/interactions</code>
+              Isolated user path: <code className="bg-stone-900 border border-stone-800 px-1.5 py-0.5 rounded text-[11px] text-amber-300 font-mono">/users/{currentUser ? currentUser.uid.slice(0, 8) + '...' : '{uid}'}/interactions</code>
             </span>
           </div>
 
           <button
             onClick={() => setShowWalkthrough(!showWalkthrough)}
-            className="inline-flex items-center gap-1 text-stone-700 hover:text-stone-900 font-medium underline cursor-pointer"
+            className="inline-flex items-center gap-1 text-stone-300 hover:text-amber-300 font-medium underline cursor-pointer"
           >
             <span>Verification Test Walkthrough</span>
             {showWalkthrough ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -272,29 +324,32 @@ export default function App() {
 
         {/* Collapsible Test Walkthrough Checklist */}
         {showWalkthrough && (
-          <div className="max-w-5xl mx-auto mt-4 p-4 rounded-xl bg-white border border-stone-200 text-xs text-stone-700 space-y-3">
-            <div className="flex items-center gap-2 font-semibold text-stone-900">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Functional Test Walkthrough (Directive 6)</span>
+          <div className="max-w-6xl mx-auto mt-4 p-5 rounded-2xl bg-stone-900 border border-stone-800 text-xs text-stone-300 space-y-3 shadow-xl">
+            <div className="flex items-center gap-2 font-bold text-stone-100 text-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Functional Test Walkthrough</span>
             </div>
-            <ol className="list-decimal pl-5 space-y-1.5 leading-relaxed">
+            <ol className="list-decimal pl-5 space-y-1.5 leading-relaxed text-stone-300">
               <li>
-                <strong>Step 1 (Google Authentication):</strong> Click <em>Continue with Google</em>. Firebase Auth completes federated popup login without transmitting passwords.
+                <strong>Step 1 (Google Authentication):</strong> Click <em>Continue with Google</em>. Firebase Auth completes federated popup login without custom password handling.
               </li>
               <li>
                 <strong>Step 2 (Mode Selection & Prompt):</strong> Select one of 4 reflection modes (<em>Mindful Reflection</em>, <em>Executive Summary</em>, <em>Brainstorm Ideas</em>, <em>Open Dialogue</em>). Type a journal reflection or click an inspiration prompt.
               </li>
               <li>
-                <strong>Step 3 (Gemini Fallback Execution):</strong> Submit the entry. Backend executes <code>generateContentWithFallback</code> starting with <code>gemini-3.6-flash</code> down the fallback ladder.
+                <strong>Step 3 (ThoughtStream Speech):</strong> Click <em>Speak: ThoughtStream</em>, grant mic access, and speak continuously. Click <em>Pause Stream</em> to commit the synthesized summary to your journal.
               </li>
               <li>
-                <strong>Step 4 (Firestore Persistence & Sanitization):</strong> User prompt, model response, and metadata are sanitized and saved to <code>/users/{'{userId}'}/interactions/{'{interactionId}'}</code>.
+                <strong>Step 4 (Gemini Fallback Execution):</strong> Submit your entry. Backend executes <code>generateContentWithFallback</code> starting with <code>gemini-3.6-flash</code> down the fallback ladder.
               </li>
               <li>
-                <strong>Step 5 (Multi-Turn Reflection):</strong> In the conversation view, input a follow-up query in the reply box. Gemini converses while maintaining context, appending the new turn to Firestore.
+                <strong>Step 5 (Firestore Persistence & Sanitization):</strong> User prompt, model response, and metadata are sanitized and saved to <code>/users/{'{userId}'}/interactions/{'{interactionId}'}</code>.
               </li>
               <li>
-                <strong>Step 6 (History Search & Management):</strong> Switch to <em>Past Entries</em> tab. Filter by mode or search by keyword. Click any card to re-open the multi-turn thread or delete the record.
+                <strong>Step 6 (Multi-Turn Chat Dialogue):</strong> In the conversation view, input a follow-up query in the reply box. Gemini converses while maintaining context, appending each turn to Firestore.
+              </li>
+              <li>
+                <strong>Step 7 (Action Board & Perspective Flip):</strong> Open the <em>Action Plan</em> to inspect extracted tasks and recurring habits, or <em>Perspective Flip</em> to challenge cognitive distortions.
               </li>
             </ol>
           </div>

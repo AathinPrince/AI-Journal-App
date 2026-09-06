@@ -12,7 +12,6 @@ import {
   AlertCircle,
   Loader2,
   Info,
-  ExternalLink,
   Volume2,
 } from 'lucide-react';
 
@@ -24,7 +23,6 @@ interface ThoughtStreamProps {
 
 type StreamState = 'idle' | 'recording' | 'review' | 'confirm';
 
-// Helper for client-side grammar & punctuation capitalization
 function formatGrammarBasic(raw: string): string {
   if (!raw) return '';
   let text = raw.trim();
@@ -57,7 +55,6 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
   const animFrameRef = useRef<number | null>(null);
   const mimeTypeRef = useRef<string>('audio/webm');
 
-  // Clean up all resources on unmount
   useEffect(() => {
     return () => {
       stopAllMedia();
@@ -116,13 +113,13 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
     } catch (err: any) {
       console.error('Microphone access denied:', err);
       setErrorMessage(
-        'Microphone access denied. Please click the lock or camera/mic icon in your browser URL address bar to enable microphone access.'
+        'Microphone access denied. Please click the lock or camera/mic icon in your browser address bar to enable microphone access.'
       );
       setShowPermissionGuide(true);
       return;
     }
 
-    // 2. Setup Audio Visualizer (real-time feedback that mic is picking up sound)
+    // 2. Setup Audio Visualizer (real-time voice feedback)
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
@@ -151,7 +148,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
       console.warn('Audio visualizer setup skipped:', visErr);
     }
 
-    // 3. Setup MediaRecorder for fail-safe audio transcription via Gemini
+    // 3. Setup MediaRecorder for high-fidelity audio buffer
     try {
       let chosenMime = 'audio/webm';
       if (typeof MediaRecorder !== 'undefined') {
@@ -180,7 +177,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
       console.warn('MediaRecorder error:', recErr);
     }
 
-    // 4. Setup SpeechRecognition (Live on-screen transcription)
+    // 4. Setup SpeechRecognition
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -219,7 +216,6 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
 
         recognition.onerror = (event: any) => {
           console.warn('SpeechRecognition notice:', event.error);
-          // If speech recognition drops or errors in an iframe, MediaRecorder is still actively capturing
         };
 
         recognition.onend = () => {
@@ -233,7 +229,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
         recognition.start();
         recognitionRef.current = recognition;
       } catch (speechErr) {
-        console.warn('SpeechRecognition start failed, will rely on MediaRecorder & Gemini AI:', speechErr);
+        console.warn('SpeechRecognition start fallback:', speechErr);
       }
     }
   };
@@ -242,7 +238,6 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
     shouldListenRef.current = false;
     setStreamState('review');
 
-    // Stop Speech Recognition
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -250,14 +245,12 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
       recognitionRef.current = null;
     }
 
-    // Stop volume visualizer
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
     setMicVolume(0);
 
-    // Stop MediaRecorder and harvest audio Blob
     let audioBlob: Blob | null = null;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       await new Promise<void>((resolve) => {
@@ -275,7 +268,6 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
       });
     }
 
-    // Release microphone hardware
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -285,23 +277,20 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
       audioCtxRef.current = null;
     }
 
-    // Determine current transcript state
     const currentText = (transcript + (interimText ? ` ${interimText}` : '')).trim();
     setInterimText('');
 
-    // If WebSpeech caught words, format and keep
     if (currentText.length > 0) {
       setTranscript(formatGrammarBasic(currentText));
       return;
     }
 
-    // FAIL-SAFE: If WebSpeech API failed to capture any words (common in sandboxed iframes),
-    // automatically transcribe the recorded audio via Gemini 3.5 Transcribe!
+    // Automated Gemini AI Audio Transcription Fallback
     if (audioBlob && (audioBlob as Blob).size > 1000) {
       await transcribeAudioBlob(audioBlob);
     } else {
       setErrorMessage(
-        'No audio detected. Please check that your microphone is unmuted and speak clearly into it.'
+        'No audio detected. Please check your microphone volume or type your thoughts directly below.'
       );
     }
   };
@@ -340,7 +329,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
               setTranscript(formatGrammarBasic(data.transcript));
             } else {
               setErrorMessage(
-                'No words were heard in the audio recording. Check your microphone volume or type your thoughts below.'
+                'No words were heard in the audio recording. Check your microphone or type your thoughts below.'
               );
             }
             resolve();
@@ -353,7 +342,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
     } catch (err: any) {
       console.error('Audio transcription error:', err);
       setErrorMessage(
-        err?.message || 'Could not transcribe speech. You can type or paste your thoughts directly below.'
+        err?.message || 'Could not transcribe speech. You can type or edit your thoughts directly below.'
       );
     } finally {
       setIsTranscribing(false);
@@ -370,7 +359,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
 
   const handleReviewAndCommit = () => {
     if (!transcript.trim()) {
-      setErrorMessage('Please capture or enter your thoughts before committing.');
+      setErrorMessage('Please speak or type your thoughts before committing.');
       return;
     }
     setStreamState('confirm');
@@ -408,7 +397,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
       const newEntry: UserInteraction = {
         id: newId,
         userId,
-        title: `ThoughtStream Voice Entry (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
+        title: `ThoughtStream (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
         prompt: rawText,
         response: summarizedText,
         mode: 'thoughtstream',
@@ -416,7 +405,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
           {
             id: `msg_${Date.now()}_user`,
             role: 'user',
-            content: `[ThoughtStream Audio Transcript]:\n${rawText}`,
+            content: `[ThoughtStream Voice Transcript]:\n${rawText}`,
             timestamp: nowIso,
           },
           {
@@ -430,7 +419,6 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
         updatedAt: nowIso,
       };
 
-      // Strict undefined-stripping & save to Firestore silently
       const sanitized = sanitizePayload(newEntry);
       const docPath = `users/${userId}/interactions/${newId}`;
 
@@ -440,7 +428,6 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
         handleFirestoreError(dbErr, OperationType.CREATE, docPath);
       }
 
-      // UX rule: Do NOT display final summary on screen. Reset inline UI and notify parent
       setTranscript('');
       setInterimText('');
       setRecordedAudioBlob(null);
@@ -455,36 +442,41 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-amber-950/5 border border-amber-900/15 transition-all">
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-amber-800/15 text-amber-900 flex items-center justify-center">
-            <Mic className="w-3.5 h-3.5" />
+    <div className="p-5 rounded-3xl bg-stone-950/80 border border-amber-500/30 shadow-xl transition-all">
+      {/* Title & Explanatory Subtext */}
+      <div className="flex items-start justify-between mb-3 pb-3 border-b border-stone-800/80">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center border border-amber-500/30">
+              <Mic className="w-4 h-4" />
+            </div>
+            <span className="text-sm font-bold text-amber-300 tracking-wide uppercase">
+              ThoughtStream
+            </span>
+            <span className="text-[10px] text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold">
+              Continuous Voice Journaling
+            </span>
           </div>
-          <span className="text-xs font-bold uppercase tracking-wider text-amber-950">
-            ThoughtStream
-          </span>
-          <span className="text-[10px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200 font-medium">
-            Continuous Audio Journal
-          </span>
+          <p className="text-xs text-stone-300 mt-1 max-w-xl leading-relaxed">
+            <strong>How to speak:</strong> Click "Start Capturing" and talk freely. The microphone stays open through silent pauses. When finished, click "Pause Stream" and Gemini will summarize your thoughts silently into your journal.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setShowPermissionGuide(!showPermissionGuide)}
-            className="text-stone-500 hover:text-amber-900 text-[11px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition cursor-pointer"
-            title="Microphone Permissions & Troubleshooting"
+            className="text-stone-400 hover:text-amber-300 text-[11px] inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-stone-800 hover:border-amber-500/30 transition cursor-pointer"
           >
-            <Info className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Permissions Help</span>
+            <Info className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Mic Help</span>
           </button>
 
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="text-stone-400 hover:text-stone-700 text-xs px-2 py-0.5 rounded hover:bg-stone-200/50 transition cursor-pointer"
+              className="text-stone-400 hover:text-stone-200 text-xs px-2.5 py-1 rounded-lg hover:bg-stone-800 transition cursor-pointer border border-stone-800"
             >
               Close
             </button>
@@ -492,97 +484,95 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
         </div>
       </div>
 
-      {/* Permissions & Troubleshooting Guide Banner */}
+      {/* Permissions Guide Banner */}
       {showPermissionGuide && (
-        <div className="mb-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-stone-700 space-y-2">
-          <div className="flex items-center justify-between font-semibold text-amber-950">
+        <div className="mb-4 p-4 rounded-2xl bg-stone-900/95 border border-amber-500/40 text-xs text-stone-300 space-y-2.5">
+          <div className="flex items-center justify-between font-bold text-amber-300">
             <span className="flex items-center gap-1.5">
-              <Mic className="w-3.5 h-3.5 text-amber-800" /> Microphone Access Checklist:
+              <Mic className="w-4 h-4 text-amber-400" /> Microphone Access Checklist:
             </span>
             <button
               onClick={() => setShowPermissionGuide(false)}
-              className="text-stone-400 hover:text-stone-700 font-normal"
+              className="text-stone-400 hover:text-stone-200 font-normal cursor-pointer"
             >
               Dismiss
             </button>
           </div>
-          <ol className="list-decimal pl-4 space-y-1 text-[11px] leading-relaxed">
+          <ol className="list-decimal pl-4 space-y-1.5 text-[11px] text-stone-300 leading-relaxed">
             <li>
-              <strong>Browser Permission:</strong> When prompted, click <strong>"Allow"</strong>. If previously blocked, click the <strong>lock / tune icon</strong> in the browser's URL address bar next to the domain name and set <strong>Microphone</strong> to <strong>"Allow"</strong>.
+              <strong>Browser Permission:</strong> Click <strong>"Allow"</strong> when prompted. If previously blocked, click the <strong>lock / tune icon</strong> next to the URL address bar and set <strong>Microphone</strong> to <strong>"Allow"</strong>.
             </li>
             <li>
-              <strong>AI Studio Iframe Preview:</strong> Browsers sometimes restrict native speech recognition inside embedded iframes. Our app automatically records high-fidelity audio and transcribes it with Gemini AI, but for native live speech recognition, click the <strong>"Open in new window"</strong> icon at the top right of the AI Studio preview.
+              <strong>AI Studio Iframe Tip:</strong> Chromium browsers sometimes restrict native speech recognition inside iframe previews. If speech-to-text is silent, clicking <strong>Pause Stream</strong> automatically transcribes your recording via Gemini AI, or you can click <strong>"Open in new window"</strong> in the top header.
             </li>
             <li>
-              <strong>System Microphone:</strong> Ensure your computer or headset microphone is unmuted and set as the default input device in your system settings.
+              <strong>Input Device:</strong> Ensure your computer microphone is unmuted and set as default in system settings.
             </li>
           </ol>
         </div>
       )}
 
       {errorMessage && (
-        <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2">
+        <div className="mb-4 p-3.5 rounded-2xl bg-rose-950/50 border border-rose-800/60 text-rose-300 text-xs flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{errorMessage}</span>
           </div>
           <button
             onClick={() => setErrorMessage(null)}
-            className="text-rose-500 hover:text-rose-800 text-[11px]"
+            className="text-rose-400 hover:text-rose-200 text-[11px] cursor-pointer"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* State 1: Idle & Recording */}
+      {/* State 1: Idle State */}
       {streamState === 'idle' && (
-        <div className="space-y-3">
-          <p className="text-xs text-stone-600 leading-relaxed">
-            Continuously capture your raw thoughts through your microphone. We'll transcribe and format your speech, then silently save an executive summary to your private journal.
-          </p>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              id="start-capturing-btn"
-              onClick={handleStartCapturing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-900 hover:bg-amber-950 text-stone-50 text-xs font-semibold shadow-xs transition cursor-pointer"
-            >
-              <Mic className="w-4 h-4 text-amber-300" />
-              <span>Start Capturing</span>
-            </button>
-            <span className="text-[11px] text-stone-500">
-              No timeouts — speak for as long as you need.
-            </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 rounded-2xl bg-stone-900/60 border border-stone-800/80">
+          <div>
+            <p className="text-xs font-semibold text-stone-200">Ready to record</p>
+            <p className="text-[11px] text-stone-400 mt-0.5">
+              No timeouts — take as much time as you need to vent, ponder, or brainstorm.
+            </p>
           </div>
+          <button
+            type="button"
+            id="start-capturing-btn"
+            onClick={handleStartCapturing}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-stone-950 text-xs font-bold shadow-md shadow-amber-950/40 transition cursor-pointer shrink-0"
+          >
+            <Mic className="w-4 h-4 text-stone-950" />
+            <span>Start Capturing</span>
+          </button>
         </div>
       )}
 
+      {/* State 2: Actively Recording */}
       {streamState === 'recording' && (
         <div className="space-y-3">
-          {/* Real-time speech display */}
-          <div className="p-3.5 rounded-xl bg-white border border-amber-900/20 shadow-xs min-h-[100px] max-h-[190px] overflow-y-auto">
-            <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-stone-100">
+          <div className="p-4 rounded-2xl bg-stone-900/90 border border-amber-500/30 shadow-inner min-h-[110px] max-h-[200px] overflow-y-auto">
+            <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-stone-800">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-                <span className="text-[11px] font-semibold text-rose-700 uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">
                   Listening continuously...
                 </span>
               </div>
 
-              {/* Real-time Voice Audio Visualizer */}
-              <div className="flex items-center gap-1.5" title={`Mic input level: ${micVolume}%`}>
-                <Volume2 className={`w-3.5 h-3.5 ${micVolume > 5 ? 'text-emerald-600' : 'text-stone-400'}`} />
-                <div className="flex items-end gap-0.5 h-4 w-16 bg-stone-100 p-0.5 rounded">
+              {/* Real-time Voice Level Meter */}
+              <div className="flex items-center gap-2" title={`Mic input level: ${micVolume}%`}>
+                <Volume2 className={`w-4 h-4 ${micVolume > 5 ? 'text-emerald-400' : 'text-stone-500'}`} />
+                <div className="flex items-end gap-0.5 h-4 w-16 bg-stone-950 p-0.5 rounded border border-stone-800">
                   {[20, 40, 60, 80, 100].map((threshold, idx) => (
                     <div
                       key={idx}
                       className={`flex-1 rounded-xs transition-all duration-75 ${
                         micVolume >= threshold
-                          ? 'bg-emerald-500 h-full'
+                          ? 'bg-emerald-400 h-full'
                           : micVolume >= threshold - 15
-                          ? 'bg-emerald-300 h-2/3'
-                          : 'bg-stone-300 h-1/3'
+                          ? 'bg-emerald-600 h-2/3'
+                          : 'bg-stone-800 h-1/3'
                       }`}
                     />
                   ))}
@@ -590,73 +580,73 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
               </div>
             </div>
 
-            <p className="text-xs sm:text-sm text-stone-900 leading-relaxed">
+            <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-normal">
               {transcript || (
-                <span className="text-stone-400 italic">
+                <span className="text-stone-500 italic">
                   {micVolume > 10
                     ? 'Hearing your voice! Transcribing speech...'
-                    : 'Speak freely, your words will appear here...'}
+                    : 'Speak naturally, your words will appear here...'}
                 </span>
               )}
-              {interimText && <span className="text-amber-800 italic"> {interimText}</span>}
+              {interimText && <span className="text-amber-400 italic"> {interimText}</span>}
             </p>
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-stone-500">
-              Pause anytime. Gemini will ensure complete accuracy when you finish.
+            <span className="text-[11px] text-stone-400">
+              Click Pause Stream when you have finished speaking.
             </span>
             <button
               type="button"
               id="pause-stream-btn"
               onClick={handlePauseStream}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-50 text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-900/80 hover:bg-rose-800 text-rose-100 text-xs font-bold border border-rose-700/80 shadow-sm transition cursor-pointer shrink-0"
             >
-              <MicOff className="w-3.5 h-3.5 text-rose-400" />
+              <MicOff className="w-4 h-4 text-rose-300" />
               <span>Pause Stream</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* State 2: Live Grammar Correction & Review */}
+      {/* State 3: Live Grammar Correction & Review */}
       {streamState === 'review' && (
         <div className="space-y-3">
-          <div className="p-3.5 rounded-xl bg-white border border-stone-200 shadow-xs min-h-[110px] space-y-2">
-            <div className="flex items-center justify-between pb-1 border-b border-stone-100 text-[11px] text-stone-500">
-              <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" /> Grammar & Punctuation Corrected
+          <div className="p-4 rounded-2xl bg-stone-900/90 border border-stone-800 shadow-inner min-h-[120px] space-y-2">
+            <div className="flex items-center justify-between pb-2 border-b border-stone-800 text-[11px] text-stone-400">
+              <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-emerald-400" /> Grammar & Formatting Applied
               </span>
               <span>{transcript.length} characters</span>
             </div>
 
             {isTranscribing ? (
-              <div className="py-6 flex flex-col items-center justify-center gap-2 text-stone-600">
-                <Loader2 className="w-5 h-5 animate-spin text-amber-800" />
-                <span className="text-xs font-medium">
-                  Transcribing your audio recording with Gemini AI...
+              <div className="py-7 flex flex-col items-center justify-center gap-2 text-stone-300">
+                <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                <span className="text-xs font-semibold text-amber-300">
+                  Transcribing your audio with Gemini AI...
                 </span>
               </div>
             ) : (
               <textarea
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
-                placeholder="Your recorded thoughts will appear here. You can also edit or type directly..."
+                placeholder="Your recorded thoughts appear here. You can edit, add, or polish your thoughts..."
                 rows={4}
-                className="w-full text-xs sm:text-sm text-stone-900 leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 resize-y"
+                className="w-full text-xs sm:text-sm text-stone-100 leading-relaxed bg-transparent border-0 focus:outline-none focus:ring-0 resize-y"
               />
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div>
               {recordedAudioBlob && !isTranscribing && (
                 <button
                   type="button"
                   onClick={() => transcribeAudioBlob(recordedAudioBlob)}
-                  className="inline-flex items-center gap-1 text-[11px] text-amber-900 hover:text-amber-950 font-medium cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
                 >
-                  <Sparkles className="w-3 h-3 text-amber-700" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                   <span>Re-transcribe Audio with Gemini</span>
                 </button>
               )}
@@ -668,9 +658,9 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
                 id="take-two-btn"
                 onClick={handleTakeTwo}
                 disabled={isTranscribing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 bg-white hover:bg-stone-100 text-stone-700 text-xs font-medium transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-stone-700 bg-stone-800 text-stone-200 hover:bg-stone-750 text-xs font-semibold transition cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3.5 h-3.5 text-stone-400" />
                 <span>Take Two</span>
               </button>
               <button
@@ -678,7 +668,7 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
                 id="review-commit-btn"
                 onClick={handleReviewAndCommit}
                 disabled={isTranscribing || !transcript.trim()}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-50 text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold shadow-md shadow-amber-950/40 transition cursor-pointer disabled:opacity-50"
               >
                 <span>Review & Commit</span>
               </button>
@@ -687,22 +677,22 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
         </div>
       )}
 
-      {/* State 3: Finalization & Silent Storage */}
+      {/* State 4: Final Confirmation */}
       {streamState === 'confirm' && (
-        <div className="p-3.5 rounded-xl bg-white border border-amber-900/20 space-y-3 shadow-xs">
-          <p className="text-xs sm:text-sm font-medium text-stone-800">
-            Would you like to add this ThoughtStream to your journal?
+        <div className="p-4 rounded-2xl bg-stone-900/95 border border-amber-500/30 space-y-3 shadow-lg">
+          <p className="text-sm font-bold text-stone-100">
+            Commit this ThoughtStream to your journal?
           </p>
-          <p className="text-[11px] text-stone-500">
-            Gemini will synthesize an insightful summary of your raw thoughts and store it directly in your isolated Firestore database.
+          <p className="text-xs text-stone-300 leading-relaxed">
+            Gemini will synthesize an executive summary of your speech and silently save both the transcript and summary to your isolated Firestore database.
           </p>
 
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div className="flex items-center justify-end gap-2.5 pt-2">
             <button
               type="button"
               onClick={() => setStreamState('review')}
               disabled={isSubmitting}
-              className="px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-100 text-xs transition cursor-pointer"
+              className="px-4 py-2 rounded-xl border border-stone-700 text-stone-300 hover:bg-stone-800 text-xs font-semibold transition cursor-pointer"
             >
               Back
             </button>
@@ -711,16 +701,16 @@ export const ThoughtStream: React.FC<ThoughtStreamProps> = ({
               id="commit-to-journal-btn"
               onClick={handleCommitToJournal}
               disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-900 hover:bg-amber-950 text-stone-50 text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold shadow-lg shadow-amber-950/50 transition cursor-pointer disabled:opacity-60"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                  <Loader2 className="w-4 h-4 animate-spin text-stone-950" />
                   <span>Summarizing & Committing...</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-300" />
+                  <CheckCircle2 className="w-4 h-4 text-stone-950" />
                   <span>Commit to Journal</span>
                 </>
               )}

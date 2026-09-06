@@ -4,5 +4,39 @@ dist/
 coverage/
 .DS_Store
 *.log
+
+# Environment files and local overrides
 .env*
 !.env.example
+*.env
+.secrets*
+*.secret
+
+# Firebase & Google Cloud Credentials (API keys, service accounts, client configs)
+firebase-applet-config.json
+firebase-applet-config.*.json
+firebase_applet_config.xml
+google-services.json
+GoogleService-Info.plist
+*serviceAccountKey*.json
+*service-account*.json
+service_account*.json
+client_secret*.json
+credentials*.json
+
+# SSL / TLS and SSH Private Keys & Certificates
+*.pem
+*.key
+*.pkcs12
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Tokens and auth caches
+*.token
+*.token.json
+.gcloud/
+

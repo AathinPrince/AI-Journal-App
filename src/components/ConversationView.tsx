@@ -21,6 +21,7 @@ import {
   Brain,
   CheckSquare,
   Mic,
+  Info,
 } from 'lucide-react';
 import { PerspectiveFlipModal } from './PerspectiveFlipModal';
 import { ActionBoardView } from './ActionBoardView';
@@ -48,7 +49,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const [showPerspectiveFlip, setShowPerspectiveFlip] = useState(false);
   const [showActionBoard, setShowActionBoard] = useState(false);
 
-  // Normalize messages: ensure legacy or single-turn entries display cleanly as messages
   const messages: ChatMessage[] =
     entry.messages && entry.messages.length > 0
       ? entry.messages
@@ -86,7 +86,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     const conversationContext = [...messages, userMsg];
 
     try {
-      // 1. Send conversation history to backend proxy
       const response = await fetch('/api/reflect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,35 +100,33 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server responded with status ${response.status}`);
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to receive conversation reply.');
       }
 
-      const data = await response.json();
-      const newResponseText: string = data.response;
+      const resData = await response.json();
+      const modelReplyText: string = resData.response || '';
 
       const modelMsg: ChatMessage = {
         id: `msg_${Date.now()}_model`,
         role: 'model',
-        content: newResponseText,
+        content: modelReplyText,
         timestamp: new Date().toISOString(),
       };
 
       const updatedMessages = [...conversationContext, modelMsg];
-
       const updatedEntry: UserInteraction = {
         ...entry,
-        response: newResponseText,
+        response: modelReplyText,
         messages: updatedMessages,
-        updatedAt: nowIso,
+        updatedAt: new Date().toISOString(),
       };
 
-      // 2. Strict undefined-stripping & Firestore atomic update
       const sanitized = sanitizePayload(updatedEntry);
       const docPath = `users/${userId}/interactions/${entry.id}`;
 
       try {
-        await setDoc(doc(db, 'users', userId, 'interactions', entry.id), sanitized, { merge: true });
+        await setDoc(doc(db, 'users', userId, 'interactions', entry.id), sanitized);
       } catch (dbErr) {
         handleFirestoreError(dbErr, OperationType.UPDATE, docPath);
       }
@@ -138,266 +135,253 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       onEntryUpdated(updatedEntry);
     } catch (err: any) {
       console.error('Follow-up error:', err);
-      setErrorMsg(err?.message || 'Failed to send follow-up reflection.');
+      setErrorMsg(err?.message || 'Could not send reply. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async () => {
+  const handleCopyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDeleteEntry = async () => {
     try {
       const docPath = `users/${userId}/interactions/${entry.id}`;
       await deleteDoc(doc(db, 'users', userId, 'interactions', entry.id));
       onEntryDeleted(entry.id);
-    } catch (dbErr) {
-      handleFirestoreError(dbErr, OperationType.DELETE, `users/${userId}/interactions/${entry.id}`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `users/${userId}/interactions/${entry.id}`);
     }
-  };
-
-  const handleCopy = () => {
-    const textToCopy = messages
-      .map((m) => `[${m.role.toUpperCase()}]:\n${m.content}\n`)
-      .join('\n---\n\n');
-    navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const getModeIcon = () => {
     switch (entry.mode) {
       case 'thoughtstream':
-        return <Mic className="w-3.5 h-3.5 text-amber-700" />;
+        return <Mic className="w-3.5 h-3.5 text-amber-400" />;
       case 'summary':
-        return <ListChecks className="w-3.5 h-3.5 text-blue-700" />;
+        return <ListChecks className="w-3.5 h-3.5 text-blue-400" />;
       case 'brainstorm':
-        return <Lightbulb className="w-3.5 h-3.5 text-amber-700" />;
+        return <Lightbulb className="w-3.5 h-3.5 text-amber-400" />;
       case 'converse':
-        return <MessageSquare className="w-3.5 h-3.5 text-purple-700" />;
-      case 'reflection':
+        return <MessageSquare className="w-3.5 h-3.5 text-purple-400" />;
       default:
-        return <Compass className="w-3.5 h-3.5 text-emerald-700" />;
+        return <Compass className="w-3.5 h-3.5 text-emerald-400" />;
     }
   };
 
-  const formattedDate = new Date(entry.createdAt).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
   return (
-    <div className="space-y-6">
-      {/* Header bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-stone-200">
-        <button
-          id="back-to-journal-btn"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-stone-700 bg-stone-100 hover:bg-stone-200/80 transition cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Editor / History</span>
-        </button>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Challenge My Assumptions Button */}
+    <div className="bg-stone-900/90 border border-stone-800/80 rounded-3xl p-5 sm:p-7 lg:p-8 shadow-2xl backdrop-blur-xl space-y-6">
+      {/* Navigation & Header Layout */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-stone-800/80">
+        <div className="flex items-center gap-3">
           <button
-            type="button"
-            id="challenge-assumptions-header-btn"
-            onClick={() => setShowPerspectiveFlip(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition cursor-pointer"
+            onClick={onBack}
+            className="p-2.5 rounded-xl border border-stone-800 bg-stone-950/70 hover:bg-stone-800 text-stone-300 hover:text-stone-100 transition cursor-pointer"
+            title="Back to Journal History"
           >
-            <Brain className="w-3.5 h-3.5 text-purple-700" />
-            <span>Challenge My Assumptions</span>
+            <ArrowLeft className="w-4 h-4" />
           </button>
-
-          {/* Extract Action Plan Button */}
-          <button
-            type="button"
-            id="extract-action-plan-header-btn"
-            onClick={() => setShowActionBoard(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
-          >
-            <CheckSquare className="w-3.5 h-3.5 text-blue-700" />
-            <span>Extract Action Plan</span>
-          </button>
-
-          <button
-            onClick={handleCopy}
-            title="Copy reflection thread"
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200 transition cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-emerald-700">Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy</span>
-              </>
-            )}
-          </button>
-
-          {showDeleteConfirm ? (
-            <div className="inline-flex items-center gap-1.5 bg-rose-50 border border-rose-200 rounded-lg p-1">
-              <span className="text-[11px] text-rose-800 px-1 font-medium">Delete?</span>
-              <button
-                id="confirm-delete-btn"
-                onClick={handleDelete}
-                className="px-2 py-0.5 rounded text-[11px] bg-rose-600 text-white font-medium hover:bg-rose-700 transition cursor-pointer"
-              >
-                Yes
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-2 py-0.5 rounded text-[11px] text-stone-600 hover:bg-stone-200 transition cursor-pointer"
-              >
-                Cancel
-              </button>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg sm:text-xl font-bold text-stone-100 tracking-tight">
+                {entry.title || 'Journal Conversation'}
+              </h2>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300 bg-amber-950/80 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                {getModeIcon()}
+                <span className="capitalize">{entry.mode || 'reflection'}</span>
+              </span>
             </div>
-          ) : (
+            <p className="text-xs text-stone-400 flex items-center gap-1.5 mt-0.5">
+              <Calendar className="w-3 h-3 text-stone-500" />
+              <span>Created {new Date(entry.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons with High Distinction */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Action Board (Tasks & Habits Extractor) */}
+          <button
+            type="button"
+            id="open-action-board-btn"
+            onClick={() => setShowActionBoard(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 text-emerald-300 border border-emerald-800/60 hover:bg-emerald-900/60 text-xs font-semibold shadow-xs transition cursor-pointer"
+          >
+            <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Action Plan</span>
+          </button>
+
+          {/* Perspective Flip Button */}
+          <button
+            type="button"
+            id="open-perspective-flip-btn"
+            onClick={() => setShowPerspectiveFlip(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-950/70 text-purple-300 border border-purple-800/60 hover:bg-purple-900/60 text-xs font-semibold shadow-xs transition cursor-pointer"
+          >
+            <Brain className="w-3.5 h-3.5 text-purple-400" />
+            <span>Perspective Flip</span>
+          </button>
+
+          {/* Delete Action */}
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="p-2 rounded-xl border border-stone-800 text-stone-400 hover:text-rose-400 hover:bg-rose-950/40 hover:border-rose-900/50 transition cursor-pointer"
+            title="Delete this entry"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Feature Explanation Banner */}
+      <div className="p-3.5 rounded-2xl bg-stone-950/60 border border-stone-800/80 flex items-start gap-2.5 text-xs text-stone-300">
+        <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <div className="leading-relaxed">
+          <strong className="text-amber-300 font-semibold">How to Chat:</strong> Gemini remembers the context of your original journal entry and past responses. Type in the reply box at the bottom to continue exploring your thoughts, ask for reframing, or ask for guidance.
+        </div>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="p-4 rounded-2xl bg-rose-950/60 border border-rose-800/70 text-rose-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>Permanently delete this entry from your private Firestore database?</span>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
-              id="delete-entry-btn"
-              onClick={() => setShowDeleteConfirm(true)}
-              title="Delete this entry from Firestore"
-              className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-3 py-1.5 rounded-xl border border-stone-700 bg-stone-800 text-stone-300 hover:bg-stone-700 font-medium cursor-pointer"
             >
-              <Trash2 className="w-4 h-4" />
+              Cancel
             </button>
-          )}
-        </div>
-      </div>
-
-      {/* Entry Metadata & Title */}
-      <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-stone-200/80 text-stone-800">
-            {getModeIcon()}
-            <span className="capitalize">{entry.mode || 'Reflection'}</span>
-          </span>
-          <span className="inline-flex items-center gap-1 text-xs text-stone-500">
-            <Calendar className="w-3 h-3" />
-            {formattedDate}
-          </span>
-        </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-stone-900 tracking-tight">
-          {entry.title || 'Journal Reflection'}
-        </h2>
-      </div>
-
-      {errorMsg && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>{errorMsg}</span>
+            <button
+              onClick={handleDeleteEntry}
+              className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer"
+            >
+              Confirm Delete
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Thread Messages */}
+      {errorMsg && (
+        <div className="p-3.5 rounded-2xl bg-rose-950/50 border border-rose-800/60 text-rose-300 text-xs flex items-center justify-between">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-rose-200 underline font-semibold cursor-pointer">
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Conversation Thread Messages */}
       <div className="space-y-4">
         {messages.map((msg, index) => {
           const isUser = msg.role === 'user';
           return (
             <div
               key={msg.id || index}
-              className={`flex gap-3 sm:gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}
+              className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
             >
-              {!isUser && (
-                <div className="w-8 h-8 rounded-xl bg-amber-900/10 text-amber-900 flex items-center justify-center shrink-0 mt-1 border border-amber-900/15 shadow-2xs">
-                  <Sparkles className="w-4 h-4 text-amber-800" />
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mb-1 px-1">
+                {isUser ? (
+                  <>
+                    <span>You</span>
+                    <User className="w-3 h-3 text-stone-400" />
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span className="text-amber-300 font-semibold">Gemini 3.6 Flash</span>
+                  </>
+                )}
+                <span>•</span>
+                <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
 
               <div
-                className={`max-w-[88%] sm:max-w-[80%] rounded-2xl p-4 sm:p-5 shadow-xs leading-relaxed text-sm ${
+                className={`max-w-3xl rounded-2xl p-4 sm:p-5 shadow-sm ${
                   isUser
-                    ? 'bg-stone-900 text-stone-50 rounded-tr-xs'
-                    : 'bg-stone-50 border border-stone-200/90 text-stone-900 rounded-tl-xs'
+                    ? 'bg-amber-500/15 border border-amber-500/30 text-stone-100'
+                    : 'bg-stone-950/80 border border-stone-800 text-stone-200'
                 }`}
               >
-                <div className="flex items-center justify-between gap-4 mb-1.5 pb-1 border-b border-stone-200/30 text-[11px]">
-                  <span className={`font-semibold ${isUser ? 'text-stone-300' : 'text-stone-700'}`}>
-                    {isUser ? 'You' : 'Gemini 3.6 Flash'}
-                  </span>
-                  <span className={isUser ? 'text-stone-400' : 'text-stone-400'}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-
                 {isUser ? (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
+                    {msg.content}
+                  </p>
                 ) : (
-                  <div className="prose prose-stone prose-sm max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-li:my-0.5">
+                  <div className="text-xs sm:text-sm leading-relaxed space-y-2 prose prose-invert prose-stone max-w-none">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <div className="flex items-center justify-end pt-2 border-t border-stone-800/80">
+                      <button
+                        onClick={() => handleCopyText(msg.content)}
+                        className="inline-flex items-center gap-1 text-[11px] text-stone-400 hover:text-amber-300 transition cursor-pointer"
+                        title="Copy response text"
+                      >
+                        {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>{copied ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {isUser && (
-                <div className="w-8 h-8 rounded-xl bg-stone-200 text-stone-700 flex items-center justify-center shrink-0 mt-1 shadow-2xs">
-                  <User className="w-4 h-4" />
-                </div>
-              )}
             </div>
           );
         })}
-
-        {loading && (
-          <div className="flex gap-3 sm:gap-4 justify-start">
-            <div className="w-8 h-8 rounded-xl bg-amber-900/10 text-amber-900 flex items-center justify-center shrink-0 mt-1 border border-amber-900/15 animate-pulse">
-              <Sparkles className="w-4 h-4 text-amber-800" />
-            </div>
-            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 rounded-tl-xs flex items-center gap-2.5 text-xs text-stone-600">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
-              <span>Gemini is synthesizing thoughts...</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Reply / Follow-up Input */}
-      <form onSubmit={handleSendFollowUp} className="bg-stone-50 border border-stone-200 rounded-2xl p-3 sm:p-4 shadow-xs">
-        <label htmlFor="followup-input" className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-          Continue Reflection Thread
+      {/* Multi-Turn Reply Form */}
+      <form onSubmit={handleSendFollowUp} className="pt-4 border-t border-stone-800/80">
+        <label htmlFor="follow-up-input" className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5">
+          Continue The Conversation
         </label>
-        <div className="flex gap-2">
-          <input
-            id="followup-input"
-            type="text"
+        <p className="text-xs text-stone-400 mb-2">
+          Ask Gemini follow-up questions, request deeper exploration of an emotion, or seek tangible next steps.
+        </p>
+        <div className="flex gap-2.5">
+          <textarea
+            id="follow-up-input"
+            rows={3}
             value={followUp}
             onChange={(e) => setFollowUp(e.target.value)}
-            placeholder="Ask for clarification, dig deeper, or explore an alternative perspective..."
+            placeholder="Type your response to continue this reflection thread..."
             disabled={loading}
-            maxLength={3000}
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-700/20 focus:border-amber-700 transition"
+            className="flex-1 px-4 py-3 rounded-2xl border border-stone-800 bg-stone-950/70 text-stone-100 text-sm placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/80 transition resize-none font-normal"
           />
           <button
             type="submit"
-            id="send-followup-btn"
+            id="send-reply-btn"
             disabled={loading || !followUp.trim()}
-            className="px-4 py-2.5 rounded-xl bg-stone-900 text-stone-50 font-medium text-xs sm:text-sm hover:bg-stone-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0 cursor-pointer"
+            className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs flex flex-col items-center justify-center gap-1 transition shadow-lg shadow-amber-950/50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
-            <Send className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reply</span>
+            {loading ? (
+              <RefreshCw className="w-4 h-4 animate-spin text-stone-950" />
+            ) : (
+              <>
+                <Send className="w-4 h-4 text-stone-950" />
+                <span>Send</span>
+              </>
+            )}
           </button>
         </div>
       </form>
 
-      {/* Perspective Flip Modal */}
+      {/* Modals */}
       {showPerspectiveFlip && (
         <PerspectiveFlipModal
           isOpen={showPerspectiveFlip}
           onClose={() => setShowPerspectiveFlip(false)}
           userId={userId}
           interactionId={entry.id}
-          reflectionText={entry.prompt + (entry.response ? `\n\n${entry.response}` : '')}
+          reflectionText={entry.prompt}
           entryTitle={entry.title}
         />
       )}
 
-      {/* Action Board View */}
       {showActionBoard && (
         <ActionBoardView
           isOpen={showActionBoard}
@@ -405,7 +389,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           userId={userId}
           interactionId={entry.id}
           entryTitle={entry.title}
-          reflectionText={entry.prompt + (entry.response ? `\n\n${entry.response}` : '')}
+          reflectionText={entry.prompt}
         />
       )}
     </div>
