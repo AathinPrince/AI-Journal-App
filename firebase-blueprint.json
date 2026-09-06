@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "Interaction": {
+      "title": "User Interaction",
+      "description": "A journal entry or reflection conversation turn between the user and Gemini",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the interaction document"
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the owning user"
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional title or headline for the journal entry"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "User journal or reflection prompt content"
+        },
+        "response": {
+          "type": "string",
+          "description": "Gemini AI response, summary, or reflection"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Interaction mode: reflection, summary, brainstorm, converse, or thoughtstream",
+          "enum": ["reflection", "summary", "brainstorm", "converse", "thoughtstream"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["userId", "prompt", "response", "createdAt"]
+    },
+    "PerspectiveBiasAnalysis": {
+      "title": "Perspective Flip Analysis",
+      "description": "Socratic blindspot and cognitive bias challenger analysis",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the bias analysis document"
+        },
+        "interactionId": {
+          "type": "string",
+          "description": "Parent interaction identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owning user UID"
+        },
+        "empathicSynthesis": {
+          "type": "string",
+          "description": "Brief, neutral summary of what was heard"
+        },
+        "reframedPerspective": {
+          "type": "string",
+          "description": "Grounded alternative viewpoint"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when analysis was created"
+        }
+      },
+      "required": ["userId", "interactionId", "empathicSynthesis", "reframedPerspective", "createdAt"]
+    },
+    "ActionBoard": {
+      "title": "Action Board and Tasks",
+      "description": "Actionable atomic task and habit extraction from journal reflections",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the action board"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owning user UID"
+        },
+        "interactionId": {
+          "type": "string",
+          "description": "Originating interaction ID"
+        },
+        "entryTitle": {
+          "type": "string",
+          "description": "Title of the journal entry"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId", "interactionId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/interactions/{interactionId}": {
+      "schema": "Interaction",
+      "description": "User-isolated collection storing reflections, journal entries, and ThoughtStream voice summaries"
+    },
+    "/users/{userId}/interactions/{interactionId}/biases/{biasId}": {
+      "schema": "PerspectiveBiasAnalysis",
+      "description": "Socratic blindspots and cognitive bias evaluations isolated to user and interaction"
+    },
+    "/users/{userId}/action_boards/{boardId}": {
+      "schema": "ActionBoard",
+      "description": "Actionable atomic tasks and habits extracted from journal reflections"
+    }
+  }
+}
